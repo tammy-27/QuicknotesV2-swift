@@ -24,18 +24,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
 
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 440),
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 460),
             styleMask: [
-                .nonactivatingPanel,
                 .titled,
                 .resizable,
-                .fullSizeContentView
+                .fullSizeContentView,
+                .nonactivatingPanel
             ],
             backing: .buffered,
             defer: false
         )
 
-        // Hide traffic light buttons
+        // Hide title bar but keep native window chrome (gives us solid background)
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.standardWindowButton(.closeButton)?.isHidden = true
@@ -49,9 +49,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.hasShadow = true
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.minSize = NSSize(width: 400, height: 300)
+
+        // Solid native background — no transparency
+        panel.isOpaque = true
+        panel.backgroundColor = NSColor.windowBackgroundColor
+
+        panel.minSize = NSSize(width: 420, height: 300)
+
+        // Allow keyboard input (Cmd+A/C/X/Z etc)
+        panel.becomesKeyOnlyIfNeeded = false
+        panel.acceptsMouseMovedEvents = true
     }
 
     @objc func togglePanel(_ sender: Any?) {
@@ -75,6 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func hidePanel() {
+        // Don't hide if a sheet/modal is open (e.g. Preferences)
+        if panel.attachedSheet != nil { return }
+        // Don't hide if any child window is key (e.g. folder picker)
+        if let key = NSApp.keyWindow, key != panel { return }
         panel.orderOut(nil)
         removeOutsideClickMonitors()
     }
@@ -82,7 +93,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installOutsideClickMonitors() {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, let panelWindow = self.panel else { return event }
-            if event.window != panelWindow { self.hidePanel() }
+            // Only hide if the click is truly outside our panel AND no sheet is open
+            if event.window != panelWindow && panelWindow.attachedSheet == nil {
+                // Check it's not a child/related window (e.g. NSOpenPanel, preferences sheet)
+                let clickedWindow = event.window
+                let isRelated = clickedWindow?.parent == panelWindow ||
+                                panelWindow.childWindows?.contains(where: { $0 == clickedWindow }) == true
+                if !isRelated {
+                    self.hidePanel()
+                }
+            }
             return event
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
