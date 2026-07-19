@@ -1,0 +1,52 @@
+name: Build SwiftUI macOS App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Select Xcode 16.4
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - name: Build (x86_64 - Intel)
+        run: swift build -c release --arch x86_64
+
+      - name: Build (arm64 - Apple Silicon)
+        run: swift build -c release --arch arm64
+
+      - name: Assemble universal binary
+        run: |
+          mkdir -p build
+          lipo -create -output build/QuickNotes \
+            .build/x86_64-apple-macosx/release/QuickNotes \
+            .build/arm64-apple-macosx/release/QuickNotes
+          file build/QuickNotes
+
+      - name: Assemble .app bundle
+        run: |
+          APP=build/QuickNotes.app
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp build/QuickNotes "$APP/Contents/MacOS/QuickNotes"
+          cp Info.plist "$APP/Contents/Info.plist"
+          cp AppIcon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+          chmod +x "$APP/Contents/MacOS/QuickNotes"
+
+      - name: Ad-hoc code sign
+        run: codesign --deep --force --sign - build/QuickNotes.app
+
+      - name: Zip the app
+        run: cd build && zip -r -X QuickNotes-SwiftUI.zip QuickNotes.app
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: QuickNotes-SwiftUI
+          path: build/QuickNotes-SwiftUI.zip
+          if-no-files-found: error
