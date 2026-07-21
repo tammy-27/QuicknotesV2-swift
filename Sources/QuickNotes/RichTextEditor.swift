@@ -18,14 +18,12 @@ struct RichTextEditor: NSViewRepresentable {
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
-        textView.usesFontPanel = true
+        textView.usesFontPanel = false
         textView.font = NSFont.systemFont(ofSize: fontSize)
-        textView.textContainerInset = NSSize(width: 8, height: 10)
+        textView.textContainerInset = NSSize(width: 10, height: 12)
         textView.delegate = context.coordinator
         textView.textStorage?.setAttributedString(text)
         textView.drawsBackground = false
-        // Ensure standard keyboard shortcuts work
-        textView.allowsDocumentBackgroundColorChange = false
         context.coordinator.textView = textView
 
         let scrollView = NSScrollView()
@@ -40,7 +38,7 @@ struct RichTextEditor: NSViewRepresentable {
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
 
-        // Become first responder so Cmd+A/C/X work immediately
+        // Fix 4: Make text view first responder immediately
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
         }
@@ -71,7 +69,6 @@ struct RichTextEditor: NSViewRepresentable {
         func setText(_ attr: NSAttributedString) {
             guard let tv = textView else { return }
             tv.textStorage?.setAttributedString(attr)
-            // Restore first responder after text replacement
             DispatchQueue.main.async {
                 tv.window?.makeFirstResponder(tv)
             }
@@ -112,15 +109,18 @@ struct RichTextEditor: NSViewRepresentable {
 
         func toggleBulletList() {
             guard let tv = textView, let storage = tv.textStorage else { return }
-            let ns = storage.string as NSString
-            let lineRange = ns.lineRange(for: tv.selectedRange)
-            let line = ns.substring(with: lineRange)
+            let fullString = storage.string
+            let nsString = fullString as NSString
+            let lineRange = nsString.lineRange(for: tv.selectedRange)
+            let line = nsString.substring(with: lineRange)
             storage.beginEditing()
-            if line.hasPrefix("\u{2022}  ") {
-                storage.replaceCharacters(in: NSRange(location: lineRange.location, length: 3), with: "")
+            if line.hasPrefix("• ") {
+                // Remove bullet prefix (bullet + space = 2 chars in NSString)
+                let removeLen = ("• " as NSString).length
+                storage.replaceCharacters(in: NSRange(location: lineRange.location, length: removeLen), with: "")
             } else {
                 storage.insert(
-                    NSAttributedString(string: "\u{2022}  ",
+                    NSAttributedString(string: "• ",
                         attributes: [.font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize)]),
                     at: lineRange.location)
             }
@@ -131,14 +131,14 @@ struct RichTextEditor: NSViewRepresentable {
 
         func toggleNumberedList() {
             guard let tv = textView, let storage = tv.textStorage else { return }
-            let ns = storage.string as NSString
-            let lineRange = ns.lineRange(for: tv.selectedRange)
-            let line = ns.substring(with: lineRange)
+            let nsString = storage.string as NSString
+            let lineRange = nsString.lineRange(for: tv.selectedRange)
+            let line = nsString.substring(with: lineRange)
             storage.beginEditing()
-            if let regex = try? NSRegularExpression(pattern: "^\\d+\\.\\s+"),
-               let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) {
+            if let regex = try? NSRegularExpression(pattern: "^\\d+\\.\\s"),
+               let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: (line as NSString).length)) {
                 storage.replaceCharacters(
-                    in: NSRange(location: lineRange.location + match.range.location, length: match.range.length),
+                    in: NSRange(location: lineRange.location, length: match.range.length),
                     with: "")
             } else {
                 storage.insert(
@@ -151,19 +151,33 @@ struct RichTextEditor: NSViewRepresentable {
             onChange?(tv.attributedString())
         }
 
+        // Fix 3: Checkbox - use NSString lengths to avoid Unicode byte mismatch
         func toggleCheckbox() {
             guard let tv = textView, let storage = tv.textStorage else { return }
-            let ns = storage.string as NSString
-            let lineRange = ns.lineRange(for: tv.selectedRange)
-            let line = ns.substring(with: lineRange)
+            let nsString = storage.string as NSString
+            let lineRange = nsString.lineRange(for: tv.selectedRange)
+            let line = nsString.substring(with: lineRange)
+
+            let unchecked = "☐ "
+            let checked   = "☑ "
+            let uncheckedLen = (unchecked as NSString).length  // 2
+            let checkedLen   = (checked   as NSString).length  // 2
+
             storage.beginEditing()
-            if line.hasPrefix("☑ ") {
-                storage.replaceCharacters(in: NSRange(location: lineRange.location, length: 2), with: "")
-            } else if line.hasPrefix("☐ ") {
-                storage.replaceCharacters(in: NSRange(location: lineRange.location, length: 2), with: "☑ ")
+            if line.hasPrefix(checked) {
+                // Remove checkbox entirely
+                storage.replaceCharacters(
+                    in: NSRange(location: lineRange.location, length: checkedLen),
+                    with: "")
+            } else if line.hasPrefix(unchecked) {
+                // Toggle unchecked → checked
+                storage.replaceCharacters(
+                    in: NSRange(location: lineRange.location, length: uncheckedLen),
+                    with: checked)
             } else {
+                // Insert unchecked checkbox
                 storage.insert(
-                    NSAttributedString(string: "☐ ",
+                    NSAttributedString(string: unchecked,
                         attributes: [.font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize)]),
                     at: lineRange.location)
             }
@@ -174,20 +188,47 @@ struct RichTextEditor: NSViewRepresentable {
     }
 }
 
-/// NSTextView subclass that ensures the panel becomes key
-/// when this view is clicked, enabling Cmd+A/C/X/V/Z etc.
+// Fix 4: NSTextView subclass that makes the window key on click
+// so Cmd+A, Cmd+C, Cmd+V, Cmd+X, Cmd+Z all work correctly
 final class KeyableTextView: NSTextView {
-    override func mouseDown(with event: NSEvent) {
-        // Make the panel key so keyboard shortcuts are routed here
-        window?.makeKey()
-        NSApp.activate(ignoringOtherApps: true)
-        super.mouseDown(with: event)
-    }
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Become first responder as soon as we have a window
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.makeFirstResponder(self)
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Ensure window is key before handling the click
+        if window?.isKeyWindow == false {
+            window?.makeKey()
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        super.mouseDown(with: event)
+    }
+
+    // Forward all standard key commands to super which handles
+    // Cmd+A (selectAll), Cmd+C (copy), Cmd+V (paste), Cmd+X (cut), Cmd+Z (undo)
     override func keyDown(with event: NSEvent) {
-        // Let standard key equivalents pass through normally
         super.keyDown(with: event)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Ensure Cmd+A/C/V/X/Z are handled by the text view's built-in responder chain
+        if event.modifierFlags.contains(.command) {
+            switch event.charactersIgnoringModifiers {
+            case "a": selectAll(nil); return true
+            case "c": copy(nil); return true
+            case "v": paste(nil); return true
+            case "x": cut(nil); return true
+            case "z": undoManager?.undo(); return true
+            default: break
+            }
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }

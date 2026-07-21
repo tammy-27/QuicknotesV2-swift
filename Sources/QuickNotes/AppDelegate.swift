@@ -23,8 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApplication.shared.terminate(nil)
         })
 
+        // Fix 1: Use a sensible fixed size that fits the content properly
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 660, height: 500),
             styleMask: [
                 .titled,
                 .resizable,
@@ -50,9 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hasShadow = true
         panel.isOpaque = true
         panel.backgroundColor = NSColor.windowBackgroundColor
-        panel.minSize = NSSize(width: 420, height: 300)
+        panel.minSize = NSSize(width: 480, height: 360)
 
-        // Critical: allow panel to become key so keyboard shortcuts work
+        // Fix 4: Must become key window so Cmd+A/C/V/X/Z work
         panel.becomesKeyOnlyIfNeeded = false
     }
 
@@ -66,10 +67,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showPanel() {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
+
         let buttonFrame = buttonWindow.frame
-        let panelSize = panel.frame.size
-        let x = buttonFrame.origin.x + (buttonFrame.width - panelSize.width) / 2
-        let y = buttonFrame.origin.y - panelSize.height - 6
+        let panelWidth = panel.frame.size.width
+        let panelHeight = panel.frame.size.height
+
+        // Fix 1: Position panel properly under menu bar icon, clamped to screen
+        var x = buttonFrame.midX - panelWidth / 2
+        var y = buttonFrame.minY - panelHeight - 6
+
+        // Clamp to screen bounds
+        if let screen = NSScreen.main {
+            let visibleFrame = screen.visibleFrame
+            x = max(visibleFrame.minX + 4, min(x, visibleFrame.maxX - panelWidth - 4))
+            y = max(visibleFrame.minY + 4, y)
+        }
+
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -77,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func hidePanel() {
-        // Don't hide if preferences window is open and key
+        // Don't hide if any other app window (preferences, folder picker) is key
         if let key = NSApp.keyWindow, key != panel { return }
         panel.orderOut(nil)
         removeOutsideClickMonitors()
@@ -86,12 +99,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installOutsideClickMonitors() {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, let panelWindow = self.panel else { return event }
+            // Only dismiss if click is outside our panel AND no other app window is open
             if event.window != panelWindow {
-                // Don't close if another app window is clicked (e.g. preferences, folder picker)
-                if event.window?.isKind(of: NSPanel.self) == false && event.window != nil {
-                    return event
+                let otherWin = event.window
+                // Keep open if it's the preferences window or any child window
+                let isOurWindow = otherWin?.parent == panelWindow ||
+                    panelWindow.childWindows?.contains(where: { $0 == otherWin }) == true
+                if !isOurWindow {
+                    self.hidePanel()
                 }
-                self.hidePanel()
             }
             return event
         }
