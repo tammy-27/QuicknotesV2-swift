@@ -20,10 +20,13 @@ struct RichTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.usesFontPanel = false
         textView.font = NSFont.systemFont(ofSize: fontSize)
-        textView.textContainerInset = NSSize(width: 10, height: 12)
+        textView.textContainerInset = NSSize(width: 12, height: 14)
         textView.delegate = context.coordinator
         textView.textStorage?.setAttributedString(text)
         textView.drawsBackground = false
+        // Fix 2 & 3: Use primary label color so text adapts to dark/light mode
+        textView.textColor = NSColor.labelColor
+        textView.insertionPointColor = NSColor.labelColor
         context.coordinator.textView = textView
 
         let scrollView = NSScrollView()
@@ -33,31 +36,27 @@ struct RichTextEditor: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         textView.autoresizingMask = [.width]
         textView.minSize = NSSize(width: 0, height: 0)
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                   height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
 
-        // Fix 4: Make text view first responder immediately
         DispatchQueue.main.async {
             textView.window?.makeFirstResponder(textView)
         }
-
         return scrollView
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {}
 
     // MARK: - Coordinator
-
     final class Coordinator: NSObject, NSTextViewDelegate {
         var textBinding: Binding<NSAttributedString>
         weak var textView: NSTextView?
         var onChange: ((NSAttributedString) -> Void)?
 
-        init(text: Binding<NSAttributedString>) {
-            self.textBinding = text
-        }
+        init(text: Binding<NSAttributedString>) { self.textBinding = text }
 
         func textDidChange(_ notification: Notification) {
             guard let tv = textView else { return }
@@ -69,11 +68,63 @@ struct RichTextEditor: NSViewRepresentable {
         func setText(_ attr: NSAttributedString) {
             guard let tv = textView else { return }
             tv.textStorage?.setAttributedString(attr)
-            DispatchQueue.main.async {
-                tv.window?.makeFirstResponder(tv)
-            }
+            DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }
         }
 
+        // MARK: Heading
+        func applyHeading(_ style: HeadingStyle) {
+            guard let tv = textView, let storage = tv.textStorage else { return }
+            let nsString = storage.string as NSString
+            let lineRange = nsString.lineRange(for: tv.selectedRange.length > 0
+                ? tv.selectedRange
+                : NSRange(location: tv.selectedRange.location, length: 0))
+            let font: NSFont
+            switch style {
+            case .h1: font = NSFont.boldSystemFont(ofSize: 24)
+            case .h2: font = NSFont.boldSystemFont(ofSize: 20)
+            case .h3: font = NSFont.boldSystemFont(ofSize: 16)
+            case .body: font = NSFont.systemFont(ofSize: AppSettings.shared.fontSize)
+            }
+            storage.beginEditing()
+            storage.addAttribute(.font, value: font, range: lineRange)
+            // Fix 2: always set foreground to labelColor so it adapts to dark mode
+            storage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: lineRange)
+            storage.endEditing()
+            textBinding.wrappedValue = tv.attributedString()
+            onChange?(tv.attributedString())
+        }
+
+        // MARK: Font color
+        func applyFontColor(_ color: NSColor) {
+            guard let tv = textView, let storage = tv.textStorage else { return }
+            let range = tv.selectedRange
+            guard range.length > 0 else { return }
+            storage.beginEditing()
+            storage.addAttribute(.foregroundColor, value: color, range: range)
+            storage.endEditing()
+            textBinding.wrappedValue = tv.attributedString()
+            onChange?(tv.attributedString())
+        }
+
+        // MARK: Font size
+        func applyFontSize(_ size: CGFloat) {
+            guard let tv = textView, let storage = tv.textStorage else { return }
+            let range = tv.selectedRange.length > 0
+                ? tv.selectedRange
+                : NSRange(location: 0, length: storage.length)
+            storage.beginEditing()
+            storage.enumerateAttribute(.font, in: range, options: []) { val, subrange, _ in
+                let cur = (val as? NSFont) ?? NSFont.systemFont(ofSize: size)
+                if let newFont = NSFont(name: cur.fontName, size: size) {
+                    storage.addAttribute(.font, value: newFont, range: subrange)
+                }
+            }
+            storage.endEditing()
+            textBinding.wrappedValue = tv.attributedString()
+            onChange?(tv.attributedString())
+        }
+
+        // MARK: Bold / Italic / Underline
         func toggleTrait(_ trait: NSFontTraitMask) {
             guard let tv = textView, let storage = tv.textStorage else { return }
             let range = tv.selectedRange
@@ -107,21 +158,24 @@ struct RichTextEditor: NSViewRepresentable {
             onChange?(tv.attributedString())
         }
 
+        // MARK: Lists
         func toggleBulletList() {
             guard let tv = textView, let storage = tv.textStorage else { return }
-            let fullString = storage.string
-            let nsString = fullString as NSString
+            let nsString = storage.string as NSString
             let lineRange = nsString.lineRange(for: tv.selectedRange)
             let line = nsString.substring(with: lineRange)
+            let prefix = "• "
+            let prefixLen = (prefix as NSString).length
             storage.beginEditing()
-            if line.hasPrefix("• ") {
-                // Remove bullet prefix (bullet + space = 2 chars in NSString)
-                let removeLen = ("• " as NSString).length
-                storage.replaceCharacters(in: NSRange(location: lineRange.location, length: removeLen), with: "")
+            if line.hasPrefix(prefix) {
+                storage.replaceCharacters(in: NSRange(location: lineRange.location, length: prefixLen), with: "")
             } else {
                 storage.insert(
-                    NSAttributedString(string: "• ",
-                        attributes: [.font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize)]),
+                    NSAttributedString(string: prefix,
+                        attributes: [
+                            .font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize),
+                            .foregroundColor: NSColor.labelColor   // Fix 2
+                        ]),
                     at: lineRange.location)
             }
             storage.endEditing()
@@ -143,7 +197,10 @@ struct RichTextEditor: NSViewRepresentable {
             } else {
                 storage.insert(
                     NSAttributedString(string: "1. ",
-                        attributes: [.font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize)]),
+                        attributes: [
+                            .font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize),
+                            .foregroundColor: NSColor.labelColor   // Fix 2
+                        ]),
                     at: lineRange.location)
             }
             storage.endEditing()
@@ -151,34 +208,40 @@ struct RichTextEditor: NSViewRepresentable {
             onChange?(tv.attributedString())
         }
 
-        // Fix 3: Checkbox - use NSString lengths to avoid Unicode byte mismatch
+        // Fix 4: Checkbox - properly handle Unicode char lengths via NSString
         func toggleCheckbox() {
             guard let tv = textView, let storage = tv.textStorage else { return }
             let nsString = storage.string as NSString
-            let lineRange = nsString.lineRange(for: tv.selectedRange)
+            // Use cursor position even if nothing selected
+            let cursorLoc = min(tv.selectedRange.location, max(0, nsString.length - 1))
+            let safeRange = NSRange(location: cursorLoc, length: 0)
+            let lineRange = nsString.lineRange(for: safeRange)
+            guard lineRange.length > 0 || lineRange.location <= nsString.length else { return }
             let line = nsString.substring(with: lineRange)
 
             let unchecked = "☐ "
             let checked   = "☑ "
-            let uncheckedLen = (unchecked as NSString).length  // 2
-            let checkedLen   = (checked   as NSString).length  // 2
+            let uncheckedNS = unchecked as NSString
+            let checkedNS   = checked as NSString
 
             storage.beginEditing()
             if line.hasPrefix(checked) {
-                // Remove checkbox entirely
                 storage.replaceCharacters(
-                    in: NSRange(location: lineRange.location, length: checkedLen),
+                    in: NSRange(location: lineRange.location, length: checkedNS.length),
                     with: "")
             } else if line.hasPrefix(unchecked) {
-                // Toggle unchecked → checked
                 storage.replaceCharacters(
-                    in: NSRange(location: lineRange.location, length: uncheckedLen),
-                    with: checked)
+                    in: NSRange(location: lineRange.location, length: uncheckedNS.length),
+                    with: NSAttributedString(string: checked, attributes: [
+                        .font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize),
+                        .foregroundColor: NSColor.labelColor
+                    ]))
             } else {
-                // Insert unchecked checkbox
                 storage.insert(
-                    NSAttributedString(string: unchecked,
-                        attributes: [.font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize)]),
+                    NSAttributedString(string: unchecked, attributes: [
+                        .font: NSFont.systemFont(ofSize: AppSettings.shared.fontSize),
+                        .foregroundColor: NSColor.labelColor
+                    ]),
                     at: lineRange.location)
             }
             storage.endEditing()
@@ -188,22 +251,25 @@ struct RichTextEditor: NSViewRepresentable {
     }
 }
 
-// Fix 4: NSTextView subclass that makes the window key on click
-// so Cmd+A, Cmd+C, Cmd+V, Cmd+X, Cmd+Z all work correctly
-final class KeyableTextView: NSTextView {
+enum HeadingStyle: String, CaseIterable {
+    case h1 = "H1"
+    case h2 = "H2"
+    case h3 = "H3"
+    case body = "Body"
+}
 
+// Fix 4: NSTextView subclass — proper first responder + keyboard shortcuts
+final class KeyableTextView: NSTextView {
     override var acceptsFirstResponder: Bool { true }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        // Become first responder as soon as we have a window
         DispatchQueue.main.async { [weak self] in
             self?.window?.makeFirstResponder(self)
         }
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Ensure window is key before handling the click
         if window?.isKeyWindow == false {
             window?.makeKey()
             NSApp.activate(ignoringOtherApps: true)
@@ -211,21 +277,20 @@ final class KeyableTextView: NSTextView {
         super.mouseDown(with: event)
     }
 
-    // Forward all standard key commands to super which handles
-    // Cmd+A (selectAll), Cmd+C (copy), Cmd+V (paste), Cmd+X (cut), Cmd+Z (undo)
-    override func keyDown(with event: NSEvent) {
-        super.keyDown(with: event)
-    }
-
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        // Ensure Cmd+A/C/V/X/Z are handled by the text view's built-in responder chain
         if event.modifierFlags.contains(.command) {
             switch event.charactersIgnoringModifiers {
             case "a": selectAll(nil); return true
-            case "c": copy(nil); return true
-            case "v": paste(nil); return true
-            case "x": cut(nil); return true
-            case "z": undoManager?.undo(); return true
+            case "c": copy(nil);      return true
+            case "v": paste(nil);     return true
+            case "x": cut(nil);       return true
+            case "z":
+                if event.modifierFlags.contains(.shift) {
+                    undoManager?.redo()
+                } else {
+                    undoManager?.undo()
+                }
+                return true
             default: break
             }
         }

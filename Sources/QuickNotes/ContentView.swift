@@ -13,13 +13,13 @@ struct ContentView: View {
         HStack(spacing: 0) {
             if sidebarVisible {
                 SidebarView(store: store)
-                    .frame(width: 175)
+                    .frame(width: 210)           // Fix 1: wider sidebar
                     .transition(.move(edge: .leading))
                 Divider()
             }
             EditorPane(store: store, onQuit: onQuit, sidebarVisible: $sidebarVisible)
         }
-        .frame(minWidth: sidebarVisible ? 420 : 280, minHeight: 300)
+        .frame(minWidth: sidebarVisible ? 680 : 460, minHeight: 420)  // Fix 1: bigger default
         .preferredColorScheme(settings.colorScheme)
         .animation(.easeInOut(duration: 0.2), value: sidebarVisible)
     }
@@ -34,111 +34,84 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Notes")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.secondary)
                 Spacer()
                 Button(action: { PreferencesWindowController.shared.show() }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 11))
+                    Image(systemName: "gearshape").font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
                 .help("Preferences")
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .padding(.top, 12)
             .padding(.bottom, 6)
 
             // Search
             HStack(spacing: 4) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundColor(.secondary)
                 TextField("Search", text: $store.searchQuery)
-                    .font(.system(size: 11))
-                    .textFieldStyle(.plain)
+                    .font(.system(size: 11)).textFieldStyle(.plain)
                 if !store.searchQuery.isEmpty {
                     Button(action: { store.searchQuery = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
+                        Image(systemName: "xmark.circle.fill").font(.system(size: 10)).foregroundColor(.secondary)
+                    }.buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8).padding(.vertical, 5)
             .background(Color.primary.opacity(0.06))
             .cornerRadius(6)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 8).padding(.bottom, 6)
 
             Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // All Notes
-                    FolderRow(
-                        label: "All Notes",
-                        icon: "note.text",
-                        count: store.notes.count,
-                        isSelected: store.selectedFolderID == nil
-                    ) { store.selectedFolderID = nil }
+                    FolderRow(label: "All Notes", icon: "note.text",
+                              count: store.notes.count,
+                              isSelected: store.selectedFolderID == nil) {
+                        store.selectedFolderID = nil
+                    }
 
                     if !store.folders.isEmpty {
                         Text("FOLDERS")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.top, 10)
-                            .padding(.bottom, 2)
+                            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 2)
                     }
 
                     ForEach(store.folders) { folder in
-                        FolderRow(
-                            label: folder.name,
-                            icon: "folder",
-                            count: folder.noteIDs.count,
-                            isSelected: store.selectedFolderID == folder.id
-                        ) { store.selectedFolderID = folder.id }
+                        FolderRow(label: folder.name, icon: "folder",
+                                  count: folder.noteIDs.count,
+                                  isSelected: store.selectedFolderID == folder.id) {
+                            store.selectedFolderID = folder.id
+                        }
                         .contextMenu {
-                            Button("Delete Folder", role: .destructive) {
-                                store.deleteFolder(folder)
-                            }
+                            Button("Delete Folder", role: .destructive) { store.deleteFolder(folder) }
                         }
                     }
 
                     if showNewFolder {
                         HStack(spacing: 4) {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 11))
-                                .foregroundColor(.accentColor)
+                            Image(systemName: "folder.badge.plus").font(.system(size: 11)).foregroundColor(.accentColor)
                             TextField("Folder name", text: $newFolderName)
-                                .font(.system(size: 12))
-                                .textFieldStyle(.plain)
+                                .font(.system(size: 12)).textFieldStyle(.plain)
                                 .onSubmit {
-                                    if !newFolderName.isEmpty {
-                                        store.createFolder(name: newFolderName)
-                                    }
-                                    newFolderName = ""
-                                    showNewFolder = false
+                                    if !newFolderName.isEmpty { store.createFolder(name: newFolderName) }
+                                    newFolderName = ""; showNewFolder = false
                                 }
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.horizontal, 12).padding(.vertical, 5)
                     }
 
                     Button(action: { showNewFolder.toggle() }) {
                         Label("New Folder", systemImage: "folder.badge.plus")
-                            .font(.system(size: 11))
-                            .foregroundColor(.accentColor)
+                            .font(.system(size: 11)).foregroundColor(.accentColor)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 6)
+                    .buttonStyle(.plain).padding(.horizontal, 12).padding(.top, 6)
 
                     Divider().padding(.vertical, 6)
 
@@ -155,9 +128,7 @@ struct SidebarView: View {
                                     }
                                 }
                                 Divider()
-                                Button("Delete Note", role: .destructive) {
-                                    store.deleteNote(note)
-                                }
+                                Button("Delete Note", role: .destructive) { store.deleteNote(note) }
                             }
                     }
                 }
@@ -168,80 +139,58 @@ struct SidebarView: View {
 
             HStack {
                 Button(action: { store.createNote() }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 13))
+                    Image(systemName: "square.and.pencil").font(.system(size: 13))
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(.accentColor)
-                .help("New Note")
+                .buttonStyle(.plain).foregroundColor(.accentColor).help("New Note")
                 Spacer()
                 Text("\(store.notes.count) note\(store.notes.count == 1 ? "" : "s")")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 10)).foregroundColor(.secondary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12).padding(.vertical, 8)
         }
         .background(Color(NSColor.controlBackgroundColor))
     }
 }
 
 struct FolderRow: View {
-    let label: String
-    let icon: String
-    let count: Int
-    let isSelected: Bool
-    let action: () -> Void
+    let label: String; let icon: String; let count: Int
+    let isSelected: Bool; let action: () -> Void
     @State private var hovering = false
-
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundColor(isSelected ? .white : .accentColor)
-                    .frame(width: 14)
-                Text(label)
-                    .font(.system(size: 12))
+                Image(systemName: icon).font(.system(size: 11))
+                    .foregroundColor(isSelected ? .white : .accentColor).frame(width: 14)
+                Text(label).font(.system(size: 12))
                     .foregroundColor(isSelected ? .white : .primary)
                 Spacer()
-                Text("\(count)")
-                    .font(.system(size: 10))
+                Text("\(count)").font(.system(size: 10))
                     .foregroundColor(isSelected ? .white.opacity(0.7) : .secondary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8).padding(.vertical, 5)
             .background(isSelected ? Color.accentColor : (hovering ? Color.primary.opacity(0.06) : Color.clear))
-            .cornerRadius(6)
-            .padding(.horizontal, 4)
+            .cornerRadius(6).padding(.horizontal, 4)
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .buttonStyle(.plain).onHover { hovering = $0 }
     }
 }
 
 struct NoteRow: View {
-    let note: Note
-    let isSelected: Bool
+    let note: Note; let isSelected: Bool
     @State private var hovering = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(note.title.isEmpty ? "Untitled" : note.title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(isSelected ? .white : .primary)
-                .lineLimit(1)
+                .foregroundColor(isSelected ? .white : .primary).lineLimit(1)
             Text(note.preview.isEmpty ? "No content" : note.preview)
                 .font(.system(size: 10))
-                .foregroundColor(isSelected ? .white.opacity(0.75) : .secondary)
-                .lineLimit(1)
+                .foregroundColor(isSelected ? .white.opacity(0.75) : .secondary).lineLimit(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8).padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isSelected ? Color.accentColor : (hovering ? Color.primary.opacity(0.06) : Color.clear))
-        .cornerRadius(6)
-        .padding(.horizontal, 4)
+        .cornerRadius(6).padding(.horizontal, 4)
         .onHover { hovering = $0 }
     }
 }
@@ -252,48 +201,96 @@ struct EditorPane: View {
     @ObservedObject var store: NoteStore
     var onQuit: () -> Void
     @Binding var sidebarVisible: Bool
+    @ObservedObject private var settings = AppSettings.shared
+
+    // Fix 7 & 8: Font size in toolbar, local state
+    @State private var toolbarFontSize: Double = AppSettings.shared.fontSize
+    @State private var selectedHeading: HeadingStyle = .body
+    @State private var showColorPanel = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
-            HStack(spacing: 4) {
+            // ── Toolbar ───────────────────────────────────────────────
+            HStack(spacing: 2) {
+
                 // Sidebar toggle
-                Button(action: { withAnimation { sidebarVisible.toggle() } }) {
-                    Image(systemName: sidebarVisible ? "sidebar.left" : "sidebar.left")
-                        .font(.system(size: 12))
-                        .foregroundColor(sidebarVisible ? .accentColor : .secondary)
+                ToolbarIconButton(systemName: "sidebar.left",
+                                  isActive: sidebarVisible,
+                                  help: sidebarVisible ? "Hide Sidebar" : "Show Sidebar") {
+                    withAnimation { sidebarVisible.toggle() }
                 }
-                .buttonStyle(.plain)
-                .help(sidebarVisible ? "Hide Sidebar" : "Show Sidebar")
 
-                Divider().frame(height: 16).padding(.horizontal, 2)
+                ToolbarDivider()
 
-                FormatButton(systemName: "bold", helpText: "Bold (select text first)") { store.toggleBold() }
-                FormatButton(systemName: "italic", helpText: "Italic") { store.toggleItalic() }
-                FormatButton(systemName: "underline", helpText: "Underline") { store.toggleUnderline() }
+                // Fix 6 & 8: Heading picker
+                Picker("", selection: $selectedHeading) {
+                    ForEach(HeadingStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue).tag(style)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 68)
+                .help("Heading style")
+                .onChange(of: selectedHeading) { style in
+                    store.applyHeading(style)
+                }
 
-                Divider().frame(height: 16).padding(.horizontal, 2)
+                // Fix 8: Bold, Italic, Underline
+                ToolbarIconButton(systemName: "bold",    help: "Bold (select text)")   { store.toggleBold() }
+                ToolbarIconButton(systemName: "italic",  help: "Italic")               { store.toggleItalic() }
+                ToolbarIconButton(systemName: "underline", help: "Underline")          { store.toggleUnderline() }
 
-                FormatButton(systemName: "list.bullet", helpText: "Bullet list") { store.toggleBullets() }
-                FormatButton(systemName: "list.number", helpText: "Numbered list") { store.toggleNumbers() }
-                FormatButton(systemName: "checkmark.square", helpText: "Checkbox") { store.toggleCheckbox() }
+                ToolbarDivider()
+
+                // Fix 7 & 8: Font size in toolbar
+                HStack(spacing: 4) {
+                    Button(action: {
+                        toolbarFontSize = max(8, toolbarFontSize - 1)
+                        store.applyFontSize(toolbarFontSize)
+                    }) {
+                        Image(systemName: "minus").font(.system(size: 10))
+                            .frame(width: 18, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color.primary.opacity(0.06))
+                    .cornerRadius(4)
+
+                    Text("\(Int(toolbarFontSize))")
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .frame(width: 22, alignment: .center)
+
+                    Button(action: {
+                        toolbarFontSize = min(72, toolbarFontSize + 1)
+                        store.applyFontSize(toolbarFontSize)
+                    }) {
+                        Image(systemName: "plus").font(.system(size: 10))
+                            .frame(width: 18, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color.primary.opacity(0.06))
+                    .cornerRadius(4)
+                }
+
+                // Fix 5 & 8: Font color picker — native macOS color panel
+                ColorPickerButton(help: "Font Color") { color in
+                    store.applyFontColor(color)
+                }
+
+                ToolbarDivider()
+
+                // Fix 8: Lists & checkbox last
+                ToolbarIconButton(systemName: "list.bullet",  help: "Bullet list")    { store.toggleBullets() }
+                ToolbarIconButton(systemName: "list.number",  help: "Numbered list")  { store.toggleNumbers() }
+                ToolbarIconButton(systemName: "checkmark.square", help: "Checkbox")   { store.toggleCheckbox() }
 
                 Spacer()
 
-                Text(store.savedLabel)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                Text(store.savedLabel).font(.system(size: 10)).foregroundColor(.secondary)
 
-                Button(action: onQuit) {
-                    Image(systemName: "power")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                .help("Quit QuickNotes")
+                ToolbarIconButton(systemName: "power", help: "Quit QuickNotes") { onQuit() }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.vertical, 6)
             .background(Color(NSColor.controlBackgroundColor))
 
             Divider()
@@ -302,17 +299,17 @@ struct EditorPane: View {
                 RichTextEditor(
                     text: $store.currentAttributedText,
                     coordinatorRef: $store.coordinator,
-                    fontSize: AppSettings.shared.fontSize
+                    fontSize: toolbarFontSize
                 )
                 .onAppear {
                     store.coordinator?.onChange = { [weak store] attr in
                         store?.textDidChange(attr)
                     }
+                    toolbarFontSize = settings.fontSize
                 }
             } else {
                 Spacer()
-                Text("No note selected")
-                    .foregroundColor(.secondary)
+                Text("No note selected").foregroundColor(.secondary)
                 Spacer()
             }
         }
@@ -320,15 +317,47 @@ struct EditorPane: View {
     }
 }
 
-struct FormatButton: View {
+// MARK: - Toolbar helpers
+
+struct ToolbarIconButton: View {
     let systemName: String
-    var helpText: String = ""
+    var isActive: Bool = false
+    let help: String
     let action: () -> Void
     @State private var hovering = false
-
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isActive ? .accentColor : .primary)
+                .frame(width: 26, height: 24)
+        }
+        .buttonStyle(.plain)
+        .background(hovering ? Color.primary.opacity(0.08) : Color.clear)
+        .cornerRadius(5)
+        .onHover { hovering = $0 }
+        .help(help)
+    }
+}
+
+struct ToolbarDivider: View {
+    var body: some View {
+        Rectangle()
+            .frame(width: 1, height: 16)
+            .foregroundColor(Color.primary.opacity(0.15))
+            .padding(.horizontal, 4)
+    }
+}
+
+// Fix 5: Native macOS color panel button
+struct ColorPickerButton: View {
+    let help: String
+    let onColorPicked: (NSColor) -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: openColorPanel) {
+            Image(systemName: "paintpalette")
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 26, height: 24)
         }
@@ -336,11 +365,26 @@ struct FormatButton: View {
         .background(hovering ? Color.primary.opacity(0.08) : Color.clear)
         .cornerRadius(5)
         .onHover { hovering = $0 }
-        .help(helpText)
+        .help(help)
+        .onReceive(NotificationCenter.default.publisher(for: .colorPanelColorDidChange)) { _ in
+            if let color = NSColorPanel.shared.color as NSColor? {
+                onColorPicked(color)
+            }
+        }
+    }
+
+    private func openColorPanel() {
+        NSColorPanel.shared.orderFront(nil)
+        NSColorPanel.shared.isContinuous = true
+        NSColorPanel.shared.showsAlpha = false
     }
 }
 
-// MARK: - Preferences (no Form, plain VStack layout)
+extension Notification.Name {
+    static let colorPanelColorDidChange = Notification.Name("NSColorPanelColorDidChangeNotification")
+}
+
+// MARK: - Preferences
 
 struct PreferencesView: View {
     @ObservedObject private var settings = AppSettings.shared
@@ -348,8 +392,6 @@ struct PreferencesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-
-            // ── Appearance ──────────────────────────────────────────
             PrefSectionHeader("Appearance")
 
             PrefRow(label: "Theme") {
@@ -377,37 +419,21 @@ struct PreferencesView: View {
                 .frame(width: 200)
             }
 
-            PrefRow(label: "Font Size") {
-                HStack(spacing: 8) {
-                    Slider(value: $settings.fontSize, in: 10...20, step: 1)
-                        .frame(width: 140)
-                    Text("\(Int(settings.fontSize)) pt")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .frame(width: 34, alignment: .leading)
-                }
-            }
-
             Divider().padding(.vertical, 8)
 
-            // ── Storage ─────────────────────────────────────────────
             PrefSectionHeader("Storage")
 
             PrefRow(label: "Save Location") {
                 HStack(spacing: 6) {
                     Text(settings.saveLocation.lastPathComponent)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: 120, alignment: .trailing)
-                    Button("Browse…") { pickFolder() }
-                        .controlSize(.small)
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                        .lineLimit(1).frame(maxWidth: 140, alignment: .trailing)
+                    Button("Browse…") { pickFolder() }.controlSize(.small)
                 }
             }
 
             Divider().padding(.vertical, 8)
 
-            // ── System ───────────────────────────────────────────────
             PrefSectionHeader("System")
 
             PrefRow(label: "Launch at startup") {
@@ -419,22 +445,18 @@ struct PreferencesView: View {
             }
 
             Spacer()
-
             Divider()
 
             HStack {
                 Spacer()
                 Button("Done") { NSApp.keyWindow?.close() }
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
                     .keyboardShortcut(.return, modifiers: [.command])
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 20).padding(.vertical, 12)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .frame(width: 480, height: 300)
+        .padding(.horizontal, 24).padding(.top, 20)
+        .frame(width: 460, height: 260)
     }
 
     private func pickFolder() {
@@ -455,23 +477,18 @@ struct PrefSectionHeader: View {
     var body: some View {
         Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.bottom, 6)
+            .foregroundColor(.secondary).padding(.bottom, 6)
     }
 }
 
 struct PrefRow<Content: View>: View {
-    let label: String
-    let content: Content
+    let label: String; let content: Content
     init(label: String, @ViewBuilder content: () -> Content) {
-        self.label = label
-        self.content = content()
+        self.label = label; self.content = content()
     }
     var body: some View {
         HStack(alignment: .center) {
-            Text(label)
-                .font(.system(size: 13))
-                .frame(width: 140, alignment: .leading)
+            Text(label).font(.system(size: 13)).frame(width: 140, alignment: .leading)
             Spacer()
             content
         }

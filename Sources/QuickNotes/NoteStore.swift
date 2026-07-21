@@ -202,6 +202,9 @@ final class NoteStore: ObservableObject {
     func toggleBullets() { coordinator?.toggleBulletList() }
     func toggleNumbers() { coordinator?.toggleNumberedList() }
     func toggleCheckbox() { coordinator?.toggleCheckbox() }
+    func applyHeading(_ style: HeadingStyle) { coordinator?.applyHeading(style) }
+    func applyFontColor(_ color: NSColor) { coordinator?.applyFontColor(color) }
+    func applyFontSize(_ size: CGFloat) { coordinator?.applyFontSize(size) }
 
     func clear() {
         let empty = NSAttributedString(string: "", attributes: [.font: NSFont.systemFont(ofSize: settings.fontSize)])
