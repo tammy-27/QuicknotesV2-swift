@@ -60,7 +60,7 @@ struct RichTextEditor: NSViewRepresentable {
         textView.textStorage?.setAttributedString(text)
         textView.autoresizingMask    = [.width]
         textView.minSize             = .zero
-        textView.maxSize             = NSSize(width: .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+        textView.maxSize             = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable   = true
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true

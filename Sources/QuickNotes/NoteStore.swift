@@ -77,7 +77,7 @@ final class NoteStore: ObservableObject {
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
         )) ?? Data()
 
-        var note = Note(title: "New Note", rtfData: data, folderID: folderID ?? selectedFolderID)
+        let note = Note(title: "New Note", rtfData: data, folderID: folderID ?? selectedFolderID)
         if let fid = note.folderID, let idx = folders.firstIndex(where: { $0.id == fid }) {
             folders[idx].noteIDs.append(note.id)
         }

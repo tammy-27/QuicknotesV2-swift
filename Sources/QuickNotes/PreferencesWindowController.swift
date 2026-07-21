@@ -22,7 +22,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     func show() {
         // Fix 2: Always bring preferences ABOVE the notes panel
-        if let prefWindow = window, let panel = NSApp.windows.first(where: { $0 is NSPanel }) {
+        if let prefWindow = window, NSApp.windows.first(where: { $0 is NSPanel }) != nil {
             // Position preferences window centered on screen, above the panel
             prefWindow.center()
             // Set level above floating panel so it's never hidden behind it
