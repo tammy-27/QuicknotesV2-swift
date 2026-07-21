@@ -201,7 +201,6 @@ final class NoteStore: ObservableObject {
     func toggleUnderline() { coordinator?.toggleUnderline() }
     func toggleBullets() { coordinator?.toggleBulletList() }
     func toggleNumbers() { coordinator?.toggleNumberedList() }
-    func toggleCheckbox() { coordinator?.toggleCheckbox() }
     func applyHeading(_ style: HeadingStyle) { coordinator?.applyHeading(style) }
     func applyFontColor(_ color: NSColor) { coordinator?.applyFontColor(color) }
     func applyFontSize(_ size: CGFloat) { coordinator?.applyFontSize(size) }

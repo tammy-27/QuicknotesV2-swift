@@ -202,15 +202,11 @@ struct EditorPane: View {
     var onQuit: () -> Void
     @Binding var sidebarVisible: Bool
     @ObservedObject private var settings = AppSettings.shared
-
-    // Fix 7 & 8: Font size in toolbar, local state
     @State private var toolbarFontSize: Double = AppSettings.shared.fontSize
-    @State private var selectedHeading: HeadingStyle = .body
-    @State private var showColorPanel = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Toolbar ───────────────────────────────────────────────
+            // ── Toolbar ──────────────────────────────────────────────
             HStack(spacing: 2) {
 
                 // Sidebar toggle
@@ -222,66 +218,41 @@ struct EditorPane: View {
 
                 ToolbarDivider()
 
-                // Fix 6 & 8: Heading picker
-                Picker("", selection: $selectedHeading) {
-                    ForEach(HeadingStyle.allCases, id: \.self) { style in
-                        Text(style.rawValue).tag(style)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 68)
-                .help("Heading style")
-                .onChange(of: selectedHeading) { style in
+                // Fix 7: Heading as segmented native-style buttons
+                HeadingButtons { style in
                     store.applyHeading(style)
                 }
 
-                // Fix 8: Bold, Italic, Underline
-                ToolbarIconButton(systemName: "bold",    help: "Bold (select text)")   { store.toggleBold() }
-                ToolbarIconButton(systemName: "italic",  help: "Italic")               { store.toggleItalic() }
+                // Bold, Italic, Underline
+                ToolbarIconButton(systemName: "bold",      help: "Bold (select text)") { store.toggleBold() }
+                ToolbarIconButton(systemName: "italic",    help: "Italic")             { store.toggleItalic() }
                 ToolbarIconButton(systemName: "underline", help: "Underline")          { store.toggleUnderline() }
 
                 ToolbarDivider()
 
-                // Fix 7 & 8: Font size in toolbar
-                HStack(spacing: 4) {
-                    Button(action: {
-                        toolbarFontSize = max(8, toolbarFontSize - 1)
-                        store.applyFontSize(toolbarFontSize)
-                    }) {
-                        Image(systemName: "minus").font(.system(size: 10))
-                            .frame(width: 18, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .background(Color.primary.opacity(0.06))
-                    .cornerRadius(4)
-
-                    Text("\(Int(toolbarFontSize))")
-                        .font(.system(size: 11, weight: .medium).monospacedDigit())
-                        .frame(width: 22, alignment: .center)
-
-                    Button(action: {
-                        toolbarFontSize = min(72, toolbarFontSize + 1)
-                        store.applyFontSize(toolbarFontSize)
-                    }) {
-                        Image(systemName: "plus").font(.system(size: 10))
-                            .frame(width: 18, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .background(Color.primary.opacity(0.06))
-                    .cornerRadius(4)
+                // Font size − n +
+                ToolbarStepButton(icon: "minus") {
+                    toolbarFontSize = max(8, toolbarFontSize - 1)
+                    store.applyFontSize(CGFloat(toolbarFontSize))
+                }
+                Text("\(Int(toolbarFontSize))")
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .frame(width: 24, alignment: .center)
+                ToolbarStepButton(icon: "plus") {
+                    toolbarFontSize = min(96, toolbarFontSize + 1)
+                    store.applyFontSize(CGFloat(toolbarFontSize))
                 }
 
-                // Fix 5 & 8: Font color picker — native macOS color panel
+                // Font color
                 ColorPickerButton(help: "Font Color") { color in
                     store.applyFontColor(color)
                 }
 
                 ToolbarDivider()
 
-                // Fix 8: Lists & checkbox last
-                ToolbarIconButton(systemName: "list.bullet",  help: "Bullet list")    { store.toggleBullets() }
-                ToolbarIconButton(systemName: "list.number",  help: "Numbered list")  { store.toggleNumbers() }
-                ToolbarIconButton(systemName: "checkmark.square", help: "Checkbox")   { store.toggleCheckbox() }
+                // Fix 5: No checkbox — only bullets and numbers
+                ToolbarIconButton(systemName: "list.bullet", help: "Bullet list")   { store.toggleBullets() }
+                ToolbarIconButton(systemName: "list.number", help: "Numbered list") { store.toggleNumbers() }
 
                 Spacer()
 
@@ -349,7 +320,64 @@ struct ToolbarDivider: View {
     }
 }
 
-// Fix 5: Native macOS color panel button
+// Fix 7: Heading buttons styled like font size − / + buttons
+struct HeadingButtons: View {
+    let onSelect: (HeadingStyle) -> Void
+    @State private var active: HeadingStyle = .body
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(HeadingStyle.allCases, id: \.self) { style in
+                HeadingPill(label: style.rawValue, isActive: active == style) {
+                    active = style
+                    onSelect(style)
+                }
+            }
+        }
+        .padding(.trailing, 2)
+    }
+}
+
+struct HeadingPill: View {
+    let label: String
+    let isActive: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(isActive ? .white : .primary)
+                .frame(width: 34, height: 22)
+                .background(isActive ? Color.accentColor : (hovering ? Color.primary.opacity(0.1) : Color.primary.opacity(0.06)))
+                .cornerRadius(5)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(label == "Body" ? "Normal text" : "Heading \(label)")
+    }
+}
+
+struct ToolbarStepButton: View {
+    let icon: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .medium))
+                .frame(width: 20, height: 22)
+        }
+        .buttonStyle(.plain)
+        .background(hovering ? Color.primary.opacity(0.1) : Color.primary.opacity(0.06))
+        .cornerRadius(4)
+        .onHover { hovering = $0 }
+    }
+}
+
+// Fix 4: Color picker — keeps panel open, live color changes
 struct ColorPickerButton: View {
     let help: String
     let onColorPicked: (NSColor) -> Void
@@ -366,22 +394,21 @@ struct ColorPickerButton: View {
         .cornerRadius(5)
         .onHover { hovering = $0 }
         .help(help)
-        .onReceive(NotificationCenter.default.publisher(for: .colorPanelColorDidChange)) { _ in
-            if let color = NSColorPanel.shared.color as NSColor? {
-                onColorPicked(color)
+        .onReceive(NotificationCenter.default.publisher(for: NSColorPanel.colorDidChangeNotification)) { _ in
+            if NSColorPanel.shared.isVisible {
+                onColorPicked(NSColorPanel.shared.color)
             }
         }
     }
 
     private func openColorPanel() {
-        NSColorPanel.shared.orderFront(nil)
-        NSColorPanel.shared.isContinuous = true
-        NSColorPanel.shared.showsAlpha = false
+        let panel = NSColorPanel.shared
+        panel.isContinuous = true   // Fix 4: live updates as cursor moves
+        panel.showsAlpha   = false
+        panel.orderFront(nil)
+        // Fix 4: don't steal first responder — panel floats independently
+        panel.makeKeyAndOrderFront(nil)
     }
-}
-
-extension Notification.Name {
-    static let colorPanelColorDidChange = Notification.Name("NSColorPanelColorDidChangeNotification")
 }
 
 // MARK: - Preferences

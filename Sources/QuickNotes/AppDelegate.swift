@@ -23,15 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApplication.shared.terminate(nil)
         })
 
-        // Fix 1: Use a sensible fixed size that fits the content properly
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 660, height: 500),
-            styleMask: [
-                .titled,
-                .resizable,
-                .fullSizeContentView,
-                .nonactivatingPanel
-            ],
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
+            styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -41,7 +35,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-
         panel.isMovableByWindowBackground = true
         panel.contentViewController = NSHostingController(rootView: contentView)
         panel.level = .floating
@@ -51,38 +44,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hasShadow = true
         panel.isOpaque = true
         panel.backgroundColor = NSColor.windowBackgroundColor
-        panel.minSize = NSSize(width: 480, height: 360)
-
-        // Fix 4: Must become key window so Cmd+A/C/V/X/Z work
+        panel.minSize = NSSize(width: 500, height: 380)
         panel.becomesKeyOnlyIfNeeded = false
     }
 
     @objc func togglePanel(_ sender: Any?) {
-        if panel.isVisible {
-            hidePanel()
-        } else {
-            showPanel()
-        }
+        if panel.isVisible { hidePanel() } else { showPanel() }
     }
 
     private func showPanel() {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
-
         let buttonFrame = buttonWindow.frame
-        let panelWidth = panel.frame.size.width
+        let panelWidth  = panel.frame.size.width
         let panelHeight = panel.frame.size.height
-
-        // Fix 1: Position panel properly under menu bar icon, clamped to screen
         var x = buttonFrame.midX - panelWidth / 2
         var y = buttonFrame.minY - panelHeight - 6
-
-        // Clamp to screen bounds
         if let screen = NSScreen.main {
-            let visibleFrame = screen.visibleFrame
-            x = max(visibleFrame.minX + 4, min(x, visibleFrame.maxX - panelWidth - 4))
-            y = max(visibleFrame.minY + 4, y)
+            let vf = screen.visibleFrame
+            x = max(vf.minX + 4, min(x, vf.maxX - panelWidth - 4))
+            y = max(vf.minY + 4, y)
         }
-
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -90,8 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func hidePanel() {
-        // Don't hide if any other app window (preferences, folder picker) is key
-        if let key = NSApp.keyWindow, key != panel { return }
+        // Fix 4: Never hide panel when color panel or any floating window is open
+        let openWindows = NSApp.windows.filter { $0.isVisible && $0 != panel }
+        if !openWindows.isEmpty { return }
         panel.orderOut(nil)
         removeOutsideClickMonitors()
     }
@@ -99,25 +81,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installOutsideClickMonitors() {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, let panelWindow = self.panel else { return event }
-            // Only dismiss if click is outside our panel AND no other app window is open
             if event.window != panelWindow {
-                let otherWin = event.window
-                // Keep open if it's the preferences window or any child window
-                let isOurWindow = otherWin?.parent == panelWindow ||
-                    panelWindow.childWindows?.contains(where: { $0 == otherWin }) == true
-                if !isOurWindow {
+                // Fix 4: Don't close if color panel, preferences, or any other app window is open
+                let allVisible = NSApp.windows.filter { $0.isVisible && $0 != panelWindow }
+                if allVisible.isEmpty {
                     self.hidePanel()
                 }
             }
             return event
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.hidePanel()
+            // Fix 4: Don't close on global click if color panel or prefs window is open
+            let allVisible = NSApp.windows.filter { $0.isVisible && $0 != self?.panel }
+            if allVisible.isEmpty {
+                self?.hidePanel()
+            }
         }
     }
 
     private func removeOutsideClickMonitors() {
-        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
+        if let m = localMonitor  { NSEvent.removeMonitor(m); localMonitor  = nil }
         if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
     }
 }
