@@ -218,8 +218,8 @@ struct EditorPane: View {
 
                 ToolbarDivider()
 
-                // Fix 7: Heading as segmented native-style buttons
-                HeadingButtons { style in
+                // Fix 7: Heading as a compact dropdown
+                HeadingMenu { style in
                     store.applyHeading(style)
                 }
 
@@ -260,8 +260,8 @@ struct EditorPane: View {
 
                 ToolbarIconButton(systemName: "power", help: "Quit QuickNotes") { onQuit() }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
             .background(Color(NSColor.controlBackgroundColor))
 
             Divider()
@@ -316,46 +316,49 @@ struct ToolbarDivider: View {
         Rectangle()
             .frame(width: 1, height: 16)
             .foregroundColor(Color.primary.opacity(0.15))
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 3)
     }
 }
 
-// Fix 7: Heading buttons styled like font size − / + buttons
-struct HeadingButtons: View {
+// Fix 7: Heading control collapsed into a single dropdown (was 4 separate
+// buttons side by side, which is most of what made the toolbar feel too wide)
+struct HeadingMenu: View {
     let onSelect: (HeadingStyle) -> Void
     @State private var active: HeadingStyle = .body
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(HeadingStyle.allCases, id: \.self) { style in
-                HeadingPill(label: style.rawValue, isActive: active == style) {
-                    active = style
-                    onSelect(style)
-                }
-            }
-        }
-        .padding(.trailing, 2)
-    }
-}
-
-struct HeadingPill: View {
-    let label: String
-    let isActive: Bool
-    let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(isActive ? .white : .primary)
-                .frame(width: 34, height: 22)
-                .background(isActive ? Color.accentColor : (hovering ? Color.primary.opacity(0.1) : Color.primary.opacity(0.06)))
-                .cornerRadius(5)
+        Menu {
+            ForEach(HeadingStyle.allCases, id: \.self) { style in
+                Button {
+                    active = style
+                    onSelect(style)
+                } label: {
+                    if active == style {
+                        Label(style.rawValue == "Body" ? "Body (Normal text)" : "Heading \(style.rawValue)",
+                              systemImage: "checkmark")
+                    } else {
+                        Text(style.rawValue == "Body" ? "Body (Normal text)" : "Heading \(style.rawValue)")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(active.rawValue)
+                    .font(.system(size: 11, weight: .medium))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .foregroundColor(.primary)
+            .frame(width: 56, height: 22)
+            .background(hovering ? Color.primary.opacity(0.1) : Color.primary.opacity(0.06))
+            .cornerRadius(5)
         }
-        .buttonStyle(.plain)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
         .onHover { hovering = $0 }
-        .help(label == "Body" ? "Normal text" : "Heading \(label)")
+        .help("Heading Style")
     }
 }
 

@@ -1,6 +1,17 @@
 import Cocoa
 import SwiftUI
 
+// Fix: SwiftUI controls hosted in a .nonactivatingPanel silently eat their first
+// click whenever the panel isn't already key (e.g. after the color panel, the
+// Preferences window, or another app took focus). AppKit asks the hit-tested
+// view whether it "accepts first mouse" before it will treat a click as a real
+// action rather than just a focus/activation click; NSHostingView says no by
+// default. Overriding it here means every SwiftUI button underneath (heading,
+// bold/italic, sidebar toggle, etc.) responds on the very first click.
+final class ClickThroughHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var panel: NSPanel!
@@ -36,7 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isMovableByWindowBackground = true
-        panel.contentViewController = NSHostingController(rootView: contentView)
+        panel.contentView = ClickThroughHostingView(rootView: contentView)
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false
@@ -48,8 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.becomesKeyOnlyIfNeeded = false
     }
 
+    // Fix: menu bar icon click always hides/unhides the notes panel, full stop —
+    // it no longer defers to the "keep panel open while color panel/prefs are
+    // open" guard. That guard still applies to the outside-click auto-dismiss
+    // below, just not to an explicit click on the icon itself.
     @objc func togglePanel(_ sender: Any?) {
-        if panel.isVisible { hidePanel() } else { showPanel() }
+        if panel.isVisible { hidePanel(force: true) } else { showPanel() }
     }
 
     private func showPanel() {
@@ -70,10 +85,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installOutsideClickMonitors()
     }
 
-    private func hidePanel() {
-        // Fix 4: Never hide panel when color panel or any floating window is open
-        let openWindows = NSApp.windows.filter { $0.isVisible && $0 != panel }
-        if !openWindows.isEmpty { return }
+    private func hidePanel(force: Bool = false) {
+        // Fix 4: Never auto-hide panel (outside click) when color panel or any
+        // floating window is open. An explicit icon click (force: true) always
+        // goes through regardless.
+        if !force {
+            let openWindows = NSApp.windows.filter { $0.isVisible && $0 != panel }
+            if !openWindows.isEmpty { return }
+        }
         panel.orderOut(nil)
         removeOutsideClickMonitors()
     }
